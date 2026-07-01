@@ -1,4 +1,4 @@
-name: Build OBSIDIAN IPA & Release (Absolute Edge-to-Edge)
+name: Build OBSIDIAN IPA & Release (Native Edge-to-Edge & Feather Ready)
 
 on:
   push:
@@ -16,16 +16,16 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v3
 
-      - name: Install XcodeGen and ldid
-        run: |
-          brew install xcodegen
-          brew install ldid
+      - name: Install XcodeGen
+        run: brew install xcodegen
 
-      # 1. حقن الأكواد البرمجية بالكامل
-      - name: Synthesize Swift Source Code
+      # 1. بناء الهيكلية الكاملة (أكواد + موارد + شاشة إقلاع حقيقية)
+      - name: Synthesize Architecture
         run: |
           mkdir -p Sources
+          mkdir -p Resources
           
+          # --- ملفات السويفت ---
           cat << 'EOF' > Sources/OBSIDIANApp.swift
           import SwiftUI
           @main
@@ -241,12 +241,42 @@ jobs:
           }
           EOF
           
-          mkdir -p Sources/Assets.xcassets/AppIcon.appiconset
-          cat << 'EOF' > Sources/Assets.xcassets/AppIcon.appiconset/Contents.json
+          # --- الموارد (Resources) ---
+          mkdir -p Resources/Assets.xcassets/AppIcon.appiconset
+          cat << 'EOF' > Resources/Assets.xcassets/AppIcon.appiconset/Contents.json
           { "images" : [], "info" : { "author" : "xcode", "version" : 1 } }
           EOF
+          
+          # ملف الـ Storyboard الحقيقي الذي يكسر وضع التوافق تماماً!
+          cat << 'EOF' > Resources/LaunchScreen.storyboard
+          <?xml version="1.0" encoding="UTF-8"?>
+          <document type="com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB" version="3.0" toolsVersion="21507" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" launchScreen="YES" useTraitCollections="YES" useSafeAreas="YES" colorMatched="YES" initialViewController="01J-lp-oVM">
+              <device id="retina6_12" orientation="portrait" appearance="light"/>
+              <dependencies>
+                  <deployment identifier="iOS"/>
+                  <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="21505"/>
+                  <capability name="Safe area layout guides" minToolsVersion="9.0"/>
+                  <capability name="documents saved in the Xcode 8 format" minToolsVersion="8.0"/>
+              </dependencies>
+              <scenes>
+                  <scene sceneID="EHf-IW-A2E">
+                      <objects>
+                          <viewController id="01J-lp-oVM" sceneMemberID="viewController">
+                              <view key="view" contentMode="scaleToFill" id="Ze5-6b-2t3">
+                                  <rect key="frame" x="0.0" y="0.0" width="393" height="852"/>
+                                  <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                                  <viewLayoutGuide key="safeArea" id="6Tk-OE-BBY"/>
+                                  <color key="backgroundColor" red="0.0196078431372549" green="0.0196078431372549" blue="0.027450980392156862" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
+                              </view>
+                          </viewController>
+                          <placeholder placeholderIdentifier="IBFirstResponder" id="iYj-Kq-Ea1" userLabel="First Responder" sceneMemberID="firstResponder"/>
+                      </objects>
+                  </scene>
+              </scenes>
+          </document>
+          EOF
 
-      # 2. توليد Info.plist الذي يحمل السحر (مفتاح UILaunchScreen)
+      # 2. ملف الـ Info.plist يشير بوضوح لشاشة الإقلاع (تأكيد الشاشة الكاملة)
       - name: Generate Perfect Info.plist
         run: |
           cat << 'EOF' > Info.plist
@@ -257,7 +287,7 @@ jobs:
               <key>CFBundleExecutable</key>
               <string>OBSIDIAN</string>
               <key>CFBundleIdentifier</key>
-              <string>com.obsidian.fullscreen</string>
+              <string>com.obsidian.full</string>
               <key>CFBundleName</key>
               <string>OBSIDIAN</string>
               <key>CFBundleDisplayName</key>
@@ -268,11 +298,8 @@ jobs:
               <string>1</string>
               <key>LSRequiresIPhoneOS</key>
               <true/>
-              
-              <!-- هذا هو المفتاح الذي يكسر وضع التوافق ويجبر الشاشة الكاملة -->
-              <key>UILaunchScreen</key>
-              <dict/>
-              
+              <key>UILaunchStoryboardName</key>
+              <string>LaunchScreen</string>
               <key>UIRequiredDeviceCapabilities</key>
               <array><string>arm64</string></array>
               <key>UISupportedInterfaceOrientations</key>
@@ -283,7 +310,7 @@ jobs:
           </plist>
           EOF
 
-      # 3. إعداد المشروع مع أمر صريح بمنع توليد الـ Plist التلقائي ليأخذ ملفنا نحن
+      # 3. بناء هيكل المشروع وضم المجلدات بشكل صحيح
       - name: Generate Xcode Project Dynamically
         run: |
           cat << 'EOF' > project.yml
@@ -297,6 +324,7 @@ jobs:
               deploymentTarget: "16.0"
               sources:
                 - path: Sources
+                - path: Resources
               info:
                 path: Info.plist
               settings:
@@ -311,14 +339,14 @@ jobs:
                   CODE_SIGNING_REQUIRED: "NO"
                   CODE_SIGNING_ALLOWED: "NO"
                   CODE_SIGN_IDENTITY: ""
-                  GENERATE_INFOPLIST_FILE: "NO" # الضربة القاضية: منع التوليد التلقائي لتجاوز غباء آبل
+                  GENERATE_INFOPLIST_FILE: "NO"
           EOF
           xcodegen generate
 
       - name: Select Latest Xcode
         run: sudo xcode-select -switch /Applications/Xcode.app
 
-      # 4. بناء المشروع
+      # 4. تجميع التطبيق بدون توقيع (خام تماماً)
       - name: Compile Source Code
         run: |
           xcodebuild clean build \
@@ -331,14 +359,29 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO
 
-      # 5. التوقيع الوهمي والتغليف
-      - name: Inject Pseudo-Signature and Package IPA
+      # 5. التوقيع بأدوات آبل الرسمية (codesign) بدلاً من ldid ليرضى به Feather!
+      - name: Native macOS Ad-Hoc Sign and Package
         run: |
           mkdir -p Payload
           mv build_output/OBSIDIAN.app Payload/
-          
           chmod +x Payload/OBSIDIAN.app/OBSIDIAN
-          ldid -S Payload/OBSIDIAN.app
+          
+          # إنشاء ملف صلاحيات رسمي للآيفون
+          cat << 'EOF' > entitlements.plist
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>application-identifier</key>
+              <string>com.obsidian.full</string>
+              <key>get-task-allow</key>
+              <true/>
+          </dict>
+          </plist>
+          EOF
+          
+          # استخدام أداة آبل الرسمية لإنشاء توقيع Ad-Hoc حقيقي، هذا ما يبحث عنه Feather!
+          codesign --force --sign - --entitlements entitlements.plist Payload/OBSIDIAN.app
           
           zip -r OBSIDIAN.ipa Payload/
 
@@ -354,7 +397,7 @@ jobs:
         with:
           tag_name: latest-app
           name: "OBSIDIAN Production IPA"
-          body: "النسخة الخارقة للشاشة الكاملة. تم تعطيل توليد Plist التلقائي لضمان الامتداد الكامل."
+          body: "الشاشة الكاملة الحقيقية والتوقيع الرسمي متوفران الآن. وداعاً للحواف السوداء ووداعاً لأخطاء Feather."
           draft: false
           prerelease: false
           files: OBSIDIAN.ipa
