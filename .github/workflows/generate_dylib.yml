@@ -31,7 +31,7 @@ jobs:
           mkdir -p temp_substrate
           cd temp_substrate
 
-          # تحميل حزمة mobilesubstrate من مستودع بنجنر
+          # تحميل حزمة mobilesubstrate
           curl -L -s "http://apt.bingner.com/debs/1443.00/mobilesubstrate_0.9.7101_iphoneos-arm.deb" -o substrate.deb
 
           # فك الحزمة
@@ -65,7 +65,9 @@ jobs:
 
       - name: Inject Objective-C Payload
         run: |
-          echo "${{ github.event.client_payload.code }}" > main.m
+          cat << 'EOF' > main.m
+          ${{ github.event.client_payload.code }}
+          EOF
 
       - name: Compile to Dylib (arm64)
         run: |
