@@ -1,4 +1,4 @@
-name: OBSIDIAN Dylib Engine (PTFakeTouch Mode)
+name: OBSIDIAN Single Dylib Builder
 
 on:
   repository_dispatch:
@@ -22,14 +22,17 @@ jobs:
         run: |
           mkdir -p generated_dylibs
 
-      # 🔥 الخطوة السحرية: سحب كود المحرك الأصلي لدمجه
+      # 🔥 التعديل هنا: سحب الكود ونسخ ملفات (.h) و (.m) معاً
       - name: Clone PTFakeTouch Engine
         run: |
           echo "⬇️ جاري سحب كود PTFakeTouch المصدري..."
           git clone https://github.com/PugaTang/PTFakeTouch.git
           mkdir -p touch_engine
-          # نسخ ملفات المحرك وملفات KIF
-          cp PTFakeTouch/PTFakeTouch/*.m touch_engine/
+          
+          # نسخ ملفات الهيدر (.h) وملفات الكود (.m) للمحرك الأساسي وملفات KIF
+          cp PTFakeTouch/PTFakeTouch/*.h touch_engine/ || true
+          cp PTFakeTouch/PTFakeTouch/*.m touch_engine/ || true
+          cp PTFakeTouch/PTFakeTouch/KIF/*.h touch_engine/ || true
           cp PTFakeTouch/PTFakeTouch/KIF/*.m touch_engine/ || true
 
       - name: Inject Objective-C Payload
@@ -38,7 +41,7 @@ jobs:
           ${{ github.event.client_payload.code }}
           EOF
 
-      # 🔥 التجميع النووي: صهر الواجهة (main.m) مع المحرك (touch_engine)
+      # 🔥 التعديل هنا: إضافة -I./touch_engine لكي يتعرف المترجم على ملفات الـ .h
       - name: Compile to Dylib (arm64)
         run: |
           SDK_PATH=$(xcrun --sdk iphoneos --show-sdk-path)
@@ -49,6 +52,7 @@ jobs:
             -isysroot "$SDK_PATH" \
             -Wno-deprecated-declarations -fobjc-arc \
             -undefined dynamic_lookup \
+            -I./touch_engine \
             main.m touch_engine/*.m -o generated_dylibs/OBSIDIAN_latest.dylib \
             -framework Foundation -framework UIKit -framework CoreGraphics -framework IOKit
 
