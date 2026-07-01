@@ -1,12 +1,16 @@
-name: Build OBSIDIAN IPA
+name: Build OBSIDIAN IPA & Release
 
 on:
   push:
     branches: [ main ]
-  workflow_dispatch: # يسمح لك بتشغيل البناء يدوياً بضغطة زر
+  workflow_dispatch:
+
+# إعطاء الصلاحية للأكشن لإنشاء وتعديل قسم الـ Releases
+permissions:
+  contents: write
 
 jobs:
-  build-and-package:
+  build-and-release:
     runs-on: macos-latest
 
     steps:
@@ -18,7 +22,6 @@ jobs:
 
       - name: Compile OBSIDIAN Source Code
         run: |
-          # نقوم ببناء التطبيق وتجاهل التوقيع (Signing) لأنك ستوقعه بنفسك لاحقاً
           xcodebuild clean build \
             -project OBSIDIAN.xcodeproj \
             -scheme OBSIDIAN \
@@ -30,15 +33,26 @@ jobs:
 
       - name: Package into Raw IPA
         run: |
-          # صناعة مجلد Payload المطلوب لتكوين أي ملف IPA
           mkdir -p Payload
-          # نقل التطبيق المبني إلى داخل المجلد
           mv build/Release-iphoneos/OBSIDIAN.app Payload/
-          # ضغط المجلد وتحويله إلى صيغة ipa
           zip -r OBSIDIAN.ipa Payload/
 
-      - name: Upload Finished IPA Artifact
-        uses: actions/upload-artifact@v3
+      - name: Clean Old Release Tag
+        run: |
+          # نحذف الإصدار القديم إن وجد لضمان تحديث الرابط دائماً
+          gh release delete latest-app --yes || true
+          git push --delete origin latest-app || true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish IPA to Releases
+        uses: softprops/action-gh-release@v1
         with:
-          name: OBSIDIAN-Raw-App
-          path: OBSIDIAN.ipa
+          tag_name: latest-app
+          name: "OBSIDIAN Latest IPA"
+          body: "تم بناء هذا التطبيق تلقائياً عبر محرك OBSIDIAN. جاهز للتثبيت."
+          draft: false
+          prerelease: false
+          files: OBSIDIAN.ipa
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
