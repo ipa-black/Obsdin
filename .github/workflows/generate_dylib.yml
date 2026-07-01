@@ -22,24 +22,35 @@ jobs:
         run: |
           mkdir -p generated_dylibs
 
+      # 🔥 الخطوة السحرية: سحب كود المحرك الأصلي لدمجه
+      - name: Clone PTFakeTouch Engine
+        run: |
+          echo "⬇️ جاري سحب كود PTFakeTouch المصدري..."
+          git clone https://github.com/PugaTang/PTFakeTouch.git
+          mkdir -p touch_engine
+          # نسخ ملفات المحرك وملفات KIF
+          cp PTFakeTouch/PTFakeTouch/*.m touch_engine/
+          cp PTFakeTouch/PTFakeTouch/KIF/*.m touch_engine/ || true
+
       - name: Inject Objective-C Payload
         run: |
           cat << 'EOF' > main.m
           ${{ github.event.client_payload.code }}
           EOF
 
+      # 🔥 التجميع النووي: صهر الواجهة (main.m) مع المحرك (touch_engine)
       - name: Compile to Dylib (arm64)
         run: |
           SDK_PATH=$(xcrun --sdk iphoneos --show-sdk-path)
           
-          echo "🔨 التجميع لبنية: arm64 (مع دعم PTFakeTouch)"
+          echo "🔨 التجميع لبنية: arm64 (مع الدمج المباشر لمحرك PTFakeTouch)"
           
           xcrun -sdk iphoneos clang -dynamiclib -arch arm64 \
             -isysroot "$SDK_PATH" \
-            -Wno-deprecated-declarations \
+            -Wno-deprecated-declarations -fobjc-arc \
             -undefined dynamic_lookup \
-            main.m -o generated_dylibs/OBSIDIAN_latest.dylib \
-            -framework Foundation -framework UIKit -framework CoreGraphics
+            main.m touch_engine/*.m -o generated_dylibs/OBSIDIAN_latest.dylib \
+            -framework Foundation -framework UIKit -framework CoreGraphics -framework IOKit
 
           TIMESTAMP=$(date +%s)
           cp generated_dylibs/OBSIDIAN_latest.dylib generated_dylibs/OBSIDIAN_$TIMESTAMP.dylib
@@ -52,7 +63,7 @@ jobs:
           git add generated_dylibs/
 
           if ! git diff-index --quiet HEAD; then
-            git commit -m "🔥 OBSIDIAN: تم بناء الأداة لدعم الألعاب بنجاح"
+            git commit -m "🔥 OBSIDIAN: تم بناء الأداة مدمجة بمحرك اللمس بنجاح"
             git pull --rebase origin ${{ github.ref }}
             git push origin HEAD:${{ github.ref }}
           else
