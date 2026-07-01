@@ -21,11 +21,11 @@ jobs:
           brew install xcodegen
           brew install ldid
 
-      # 1. حقن الأكواد البرمجية (الصلبة والمكتملة)
-      - name: Synthesize Swift Source Code
+      - name: Synthesize Swift Source Code and Assets
         run: |
           mkdir -p Sources
           
+          # 1. إنشاء ملفات الكود
           cat << 'EOF' > Sources/OBSIDIANApp.swift
           import SwiftUI
           @main
@@ -240,7 +240,15 @@ jobs:
           }
           EOF
 
-      # 2. توليد Info.plist
+          # 2. إنشاء Asset Catalog لتفادي أخطاء نقص الأيقونات
+          mkdir -p Sources/Assets.xcassets/AppIcon.appiconset
+          cat << 'EOF' > Sources/Assets.xcassets/AppIcon.appiconset/Contents.json
+          {
+            "images" : [],
+            "info" : { "author" : "xcode", "version" : 1 }
+          }
+          EOF
+
       - name: Generate Perfect Info.plist
         run: |
           cat << 'EOF' > Info.plist
@@ -262,13 +270,14 @@ jobs:
               <string>1</string>
               <key>LSRequiresIPhoneOS</key>
               <true/>
+              <key>UILaunchScreen</key>
+              <dict/>
               <key>UIRequiredDeviceCapabilities</key>
               <array><string>arm64</string></array>
           </dict>
           </plist>
           EOF
 
-      # 3. إنشاء ملف المشروع مع تحديد إصدار السويفت صراحة
       - name: Generate Xcode Project Dynamically
         run: |
           cat << 'EOF' > project.yml
@@ -291,30 +300,31 @@ jobs:
                   VALID_ARCHS: arm64
                   ONLY_ACTIVE_ARCH: NO
                   ENABLE_BITCODE: NO
-                  CODE_SIGNING_REQUIRED: "NO"
-                  CODE_SIGNING_ALLOWED: "NO"
-                  CODE_SIGN_IDENTITY: ""
+                  ENABLE_PREVIEWS: NO
+                  ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+                  CODE_SIGN_IDENTITY: "-"
+                  CODE_SIGNING_REQUIRED: "YES"
+                  CODE_SIGNING_ALLOWED: "YES"
           EOF
           xcodegen generate
 
       - name: Select Latest Xcode
         run: sudo xcode-select -switch /Applications/Xcode.app
 
-      # 4. بناء المشروع كـ Debug لحل تضارب التحسين (-O vs -Onone) وتخطي القيود تماماً
-      - name: Compile Source Code (Debug Mode)
+      - name: Compile Source Code
         run: |
           xcodebuild clean build \
             -project OBSIDIAN.xcodeproj \
             -scheme OBSIDIAN \
             -sdk iphoneos \
-            -configuration Debug \
+            -configuration Release \
             -arch arm64 \
             CONFIGURATION_BUILD_DIR=${PWD}/build_output \
-            CODE_SIGN_IDENTITY="" \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_ALLOWED=NO
+            CODE_SIGN_IDENTITY="-" \
+            CODE_SIGNING_REQUIRED=YES \
+            CODE_SIGNING_ALLOWED=YES \
+            ENABLE_PREVIEWS=NO
 
-      # 5. حقن التوقيع الوهمي (ldid) وتغليف التطبيق ليقبله Feather فوراً
       - name: Inject Pseudo-Signature and Package IPA
         run: |
           mkdir -p Payload
@@ -337,7 +347,7 @@ jobs:
         with:
           tag_name: latest-app
           name: "OBSIDIAN Production IPA"
-          body: "التطبيق تم بناؤه بنجاح وتوقيعه وهمياً عبر ldid. جاهز تماماً لتطبيق Feather!"
+          body: "النسخة النهائية والذهبية لتطبيق OBSIDIAN. مصمت، خالي من أخطاء العرض، وموقع بـ ldid. مبروك!"
           draft: false
           prerelease: false
           files: OBSIDIAN.ipa
