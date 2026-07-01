@@ -23,17 +23,16 @@ jobs:
           mkdir -p generated_dylibs
 
       # 🔥 التعديل هنا: سحب الكود ونسخ ملفات (.h) و (.m) معاً
-      - name: Clone PTFakeTouch Engine
+       - name: Clone PTFakeTouch Engine
+             - name:Clone PTFakeTouch Engine
         run: |
-          echo "⬇️ جاري سحب كود PTFakeTouch المصدري..."
+          echo "⬇️ جاري سحب كود PTFakeTouch وتسطيحه..."
           git clone https://github.com/PugaTang/PTFakeTouch.git
           mkdir -p touch_engine
-          
-          # نسخ ملفات الهيدر (.h) وملفات الكود (.m) للمحرك الأساسي وملفات KIF
-          cp PTFakeTouch/PTFakeTouch/*.h touch_engine/ || true
-          cp PTFakeTouch/PTFakeTouch/*.m touch_engine/ || true
-          cp PTFakeTouch/PTFakeTouch/KIF/*.h touch_engine/ || true
-          cp PTFakeTouch/PTFakeTouch/KIF/*.m touch_engine/ || true
+          # هذا السطر سيبحث عن أي ملف .h أو .m في أي مكان داخل المكتبة وينسخه لمجلد touch_engine
+          find PTFakeTouch -name "*.h" -exec cp {} touch_engine/ \;
+          find PTFakeTouch -name "*.m" -exec cp {} touch_engine/ \;
+
 
       - name: Inject Objective-C Payload
         run: |
