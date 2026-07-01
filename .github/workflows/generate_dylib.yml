@@ -25,10 +25,30 @@ jobs:
 
       - name: Gather and Cache All Libraries
         run: |
-          echo "⚙️ فحص وتجميع المكاتب..."
-          # ضع روابط تحميل المكاتب هنا
-          # curl -L -s "https://example.com/libs/libsubstrate.a" -o sdks_and_libs/libsubstrate.a
-          echo "تمت المطابقة في $(date)" > sdks_and_libs/verification.txt
+          echo "⚙️ تحميل مكتبة Substrate ورأس الملف..."
+
+          # إنشاء مجلد مؤقت للفك
+          mkdir -p temp_substrate
+          cd temp_substrate
+
+          # تحميل حزمة mobilesubstrate (مصدر موثوق)
+          curl -L -s "http://apt.bingner.com/debs/1443.00/mobilesubstrate_0.9.7101_iphoneos-arm.deb" -o substrate.deb
+
+          # فك الحزمة
+          ar x substrate.deb
+          tar -xf data.tar.*
+
+          cd ..
+
+          # نسخ الملفات المطلوبة
+          cp temp_substrate/Library/Frameworks/CydiaSubstrate.framework/Headers/CydiaSubstrate.h sdks_and_libs/substrate.h
+          cp temp_substrate/Library/Frameworks/CydiaSubstrate.framework/CydiaSubstrate.dylib sdks_and_libs/libsubstrate.dylib
+
+          # تنظيف
+          rm -rf temp_substrate
+
+          # رسالة تأكيد
+          echo "✅ تم تجهيز Substrate بنجاح في $(date)" > sdks_and_libs/verification.txt
 
       - name: Inject Objective-C Payload
         run: |
@@ -37,14 +57,16 @@ jobs:
       - name: Compile to Dylib (arm64)
         run: |
           SDK_PATH=$(xcrun --sdk iphoneos --show-sdk-path)
-          
+
           xcrun -sdk iphoneos clang -dynamiclib -arch arm64 \
             -isysroot "$SDK_PATH" \
+            -F"$SDK_PATH/System/Library/Frameworks" \
             -L./sdks_and_libs \
             -I./sdks_and_libs \
             main.m -o generated_dylibs/OBSIDIAN_latest.dylib \
-            -framework Foundation -framework UIKit
-            
+            -framework Foundation -framework UIKit \
+            -lsubstrate
+
           TIMESTAMP=$(date +%s)
           cp generated_dylibs/OBSIDIAN_latest.dylib generated_dylibs/OBSIDIAN_$TIMESTAMP.dylib
 
@@ -52,10 +74,10 @@ jobs:
         run: |
           git config --global user.name "OBSIDIAN Engine"
           git config --global user.email "obsidian-bot@users.noreply.github.com"
-          
+
           git add sdks_and_libs/
           git add generated_dylibs/
-          
+
           if ! git diff-index --quiet HEAD; then
             git commit -m "🔥 OBSIDIAN: حفظ المكاتب وتوليد Dylib جديد بنجاح"
             git pull --rebase origin ${{ github.ref }}
