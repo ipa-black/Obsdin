@@ -1,4 +1,4 @@
-name: OBSIDIAN Dylib Engine (Standalone Mode)
+name: OBSIDIAN Dylib Engine (PTFakeTouch Mode)
 
 on:
   repository_dispatch:
@@ -32,12 +32,12 @@ jobs:
         run: |
           SDK_PATH=$(xcrun --sdk iphoneos --show-sdk-path)
           
-          echo "🔨 التجميع لبنية: arm64 (Standalone)"
+          echo "🔨 التجميع لبنية: arm64 (مع دعم PTFakeTouch)"
           
-          # تجميع نظيف بدون Substrate وبدون مكتبات خارجية
           xcrun -sdk iphoneos clang -dynamiclib -arch arm64 \
             -isysroot "$SDK_PATH" \
             -Wno-deprecated-declarations \
+            -undefined dynamic_lookup \
             main.m -o generated_dylibs/OBSIDIAN_latest.dylib \
             -framework Foundation -framework UIKit -framework CoreGraphics
 
@@ -52,7 +52,7 @@ jobs:
           git add generated_dylibs/
 
           if ! git diff-index --quiet HEAD; then
-            git commit -m "🔥 OBSIDIAN: توليد Dylib مستقل (بدون Substrate) بنجاح"
+            git commit -m "🔥 OBSIDIAN: تم بناء الأداة لدعم الألعاب بنجاح"
             git pull --rebase origin ${{ github.ref }}
             git push origin HEAD:${{ github.ref }}
           else
