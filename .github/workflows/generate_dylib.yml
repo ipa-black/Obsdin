@@ -1,0 +1,65 @@
+name: OBSIDIAN Dylib Engine (Archival Mode)
+
+on:
+  repository_dispatch:
+    types: [generate-dylib]
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-archive:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+        with:
+          persist-credentials: true
+          fetch-depth: 0
+
+      - name: Prepare Architecture Directories
+        run: |
+          mkdir -p sdks_and_libs
+          mkdir -p generated_dylibs
+
+      - name: Gather and Cache All Libraries
+        run: |
+          echo "⚙️ فحص وتجميع المكاتب..."
+          # ضع روابط تحميل المكاتب هنا
+          # curl -L -s "https://example.com/libs/libsubstrate.a" -o sdks_and_libs/libsubstrate.a
+          echo "تمت المطابقة في $(date)" > sdks_and_libs/verification.txt
+
+      - name: Inject Objective-C Payload
+        run: |
+          echo "${{ github.event.client_payload.code }}" > main.m
+
+      - name: Compile to Dylib (arm64)
+        run: |
+          SDK_PATH=$(xcrun --sdk iphoneos --show-sdk-path)
+          
+          xcrun -sdk iphoneos clang -dynamiclib -arch arm64 \
+            -isysroot "$SDK_PATH" \
+            -L./sdks_and_libs \
+            -I./sdks_and_libs \
+            main.m -o generated_dylibs/OBSIDIAN_latest.dylib \
+            -framework Foundation -framework UIKit
+            
+          TIMESTAMP=$(date +%s)
+          cp generated_dylibs/OBSIDIAN_latest.dylib generated_dylibs/OBSIDIAN_$TIMESTAMP.dylib
+
+      - name: Commit and Push All Assets to Repository
+        run: |
+          git config --global user.name "OBSIDIAN Engine"
+          git config --global user.email "obsidian-bot@users.noreply.github.com"
+          
+          git add sdks_and_libs/
+          git add generated_dylibs/
+          
+          if ! git diff-index --quiet HEAD; then
+            git commit -m "🔥 OBSIDIAN: حفظ المكاتب وتوليد Dylib جديد بنجاح"
+            git pull --rebase origin ${{ github.ref }}
+            git push origin HEAD:${{ github.ref }}
+          else
+            echo "✅ كل الملفات مطابقة."
+          fi
