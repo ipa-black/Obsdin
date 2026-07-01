@@ -21,11 +21,11 @@ jobs:
           brew install xcodegen
           brew install ldid
 
+      # 1. حقن الأكواد البرمجية الكاملة
       - name: Synthesize Swift Source Code and Assets
         run: |
           mkdir -p Sources
           
-          # 1. إنشاء ملفات الكود
           cat << 'EOF' > Sources/OBSIDIANApp.swift
           import SwiftUI
           @main
@@ -239,16 +239,13 @@ jobs:
               }
           }
           EOF
-
-          # 2. إنشاء Asset Catalog لتفادي أخطاء نقص الأيقونات
+          
           mkdir -p Sources/Assets.xcassets/AppIcon.appiconset
           cat << 'EOF' > Sources/Assets.xcassets/AppIcon.appiconset/Contents.json
-          {
-            "images" : [],
-            "info" : { "author" : "xcode", "version" : 1 }
-          }
+          { "images" : [], "info" : { "author" : "xcode", "version" : 1 } }
           EOF
 
+      # 2. توليد Info.plist
       - name: Generate Perfect Info.plist
         run: |
           cat << 'EOF' > Info.plist
@@ -278,6 +275,7 @@ jobs:
           </plist>
           EOF
 
+      # 3. إعداد المشروع ومنع التوقيع بشكل صريح داخل الإعدادات
       - name: Generate Xcode Project Dynamically
         run: |
           cat << 'EOF' > project.yml
@@ -302,15 +300,17 @@ jobs:
                   ENABLE_BITCODE: NO
                   ENABLE_PREVIEWS: NO
                   ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
-                  CODE_SIGN_IDENTITY: "-"
-                  CODE_SIGNING_REQUIRED: "YES"
-                  CODE_SIGNING_ALLOWED: "YES"
+                  CODE_SIGNING_REQUIRED: "NO"
+                  CODE_SIGNING_ALLOWED: "NO"
+                  # تفريغ خانة التوقيع بالكامل لمنع ظهور خطأ الـ Ad-Hoc
+                  CODE_SIGN_IDENTITY: ""
           EOF
           xcodegen generate
 
       - name: Select Latest Xcode
         run: sudo xcode-select -switch /Applications/Xcode.app
 
+      # 4. بناء المشروع كـ Release مع إلغاء كل معاملات التوقيع من أمر xcodebuild
       - name: Compile Source Code
         run: |
           xcodebuild clean build \
@@ -320,11 +320,11 @@ jobs:
             -configuration Release \
             -arch arm64 \
             CONFIGURATION_BUILD_DIR=${PWD}/build_output \
-            CODE_SIGN_IDENTITY="-" \
-            CODE_SIGNING_REQUIRED=YES \
-            CODE_SIGNING_ALLOWED=YES \
-            ENABLE_PREVIEWS=NO
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO
+            # لقد أزلت CODE_SIGN_IDENTITY="-" من هنا، هذا هو ما كان يغضب خوادم آبل!
 
+      # 5. حقن مساحة توقيع وهمية يدوياً بـ ldid ليقبلها Feather
       - name: Inject Pseudo-Signature and Package IPA
         run: |
           mkdir -p Payload
@@ -347,7 +347,7 @@ jobs:
         with:
           tag_name: latest-app
           name: "OBSIDIAN Production IPA"
-          body: "النسخة النهائية والذهبية لتطبيق OBSIDIAN. مصمت، خالي من أخطاء العرض، وموقع بـ ldid. مبروك!"
+          body: "النسخة النهائية من تطبيق OBSIDIAN. مبني بنجاح بدون قيود التوقيع وموقع وهمياً بـ ldid."
           draft: false
           prerelease: false
           files: OBSIDIAN.ipa
