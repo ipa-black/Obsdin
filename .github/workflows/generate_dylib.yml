@@ -31,7 +31,7 @@ jobs:
           mkdir -p temp_substrate
           cd temp_substrate
 
-          # تحميل حزمة mobilesubstrate (مصدر موثوق)
+          # تحميل حزمة mobilesubstrate من مستودع بنجنر
           curl -L -s "http://apt.bingner.com/debs/1443.00/mobilesubstrate_0.9.7101_iphoneos-arm.deb" -o substrate.deb
 
           # فك الحزمة
@@ -40,15 +40,28 @@ jobs:
 
           cd ..
 
-          # نسخ الملفات المطلوبة
-          cp temp_substrate/Library/Frameworks/CydiaSubstrate.framework/Headers/CydiaSubstrate.h sdks_and_libs/substrate.h
-          cp temp_substrate/Library/Frameworks/CydiaSubstrate.framework/CydiaSubstrate.dylib sdks_and_libs/libsubstrate.dylib
+          # البحث عن ملف الرأس (substrate.h أو CydiaSubstrate.h) ونسخه
+          HEADER_FILE=$(find temp_substrate -name "substrate.h" -o -name "CydiaSubstrate.h" | head -n 1)
+          if [ -z "$HEADER_FILE" ]; then
+            echo "❌ لم يتم العثور على ملف الرأس"
+            exit 1
+          fi
+          cp "$HEADER_FILE" sdks_and_libs/substrate.h
+          echo "✅ تم نسخ ملف الرأس: $HEADER_FILE"
+
+          # البحث عن المكتبة الديناميكية (CydiaSubstrate.dylib أو libsubstrate.dylib) ونسخها
+          LIB_FILE=$(find temp_substrate -name "CydiaSubstrate.dylib" -o -name "libsubstrate.dylib" | head -n 1)
+          if [ -z "$LIB_FILE" ]; then
+            echo "❌ لم يتم العثور على ملف المكتبة"
+            exit 1
+          fi
+          cp "$LIB_FILE" sdks_and_libs/libsubstrate.dylib
+          echo "✅ تم نسخ المكتبة: $LIB_FILE"
 
           # تنظيف
           rm -rf temp_substrate
 
-          # رسالة تأكيد
-          echo "✅ تم تجهيز Substrate بنجاح في $(date)" > sdks_and_libs/verification.txt
+          echo "تم تجهيز Substrate بنجاح في $(date)" > sdks_and_libs/verification.txt
 
       - name: Inject Objective-C Payload
         run: |
