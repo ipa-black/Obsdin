@@ -1,4 +1,4 @@
-name: OBSIDIAN Single Dylib Builder
+name: OBSIDIAN Build & Release
 
 on:
   repository_dispatch:
@@ -8,67 +8,55 @@ permissions:
   contents: write
 
 jobs:
-  build-and-archive:
+  build:
     runs-on: macos-latest
-
     steps:
       - name: Checkout Code
         uses: actions/checkout@v3
-        with:
-          persist-credentials: true
-          fetch-depth: 0
 
-      - name: Prepare Directories
-        run: |
-          mkdir -p generated_dylibs
-
-      # 🔥 التعديل هنا: سحب الكود ونسخ ملفات (.h) و (.m) معاً
-       - name: Clone PTFakeTouch Engine
-             - name:Clone PTFakeTouch Engine
+      - name: Setup PTFakeTouch Engine
         run: |
           echo "⬇️ جاري سحب كود PTFakeTouch وتسطيحه..."
           git clone https://github.com/PugaTang/PTFakeTouch.git
           mkdir -p touch_engine
-          # هذا السطر سيبحث عن أي ملف .h أو .m في أي مكان داخل المكتبة وينسخه لمجلد touch_engine
           find PTFakeTouch -name "*.h" -exec cp {} touch_engine/ \;
           find PTFakeTouch -name "*.m" -exec cp {} touch_engine/ \;
 
-
-      - name: Inject Objective-C Payload
-        run: |
-          cat << 'EOF' > main.m
-          ${{ github.event.client_payload.code }}
-          EOF
-
-      # 🔥 التعديل هنا: إضافة -I./touch_engine لكي يتعرف المترجم على ملفات الـ .h
       - name: Compile to Dylib (arm64)
+        env:
+          PAYLOAD: ${{ github.event.client_payload.code_base64 }}
+          NAME: ${{ github.event.client_payload.dylib_name }}
         run: |
+          echo "🔓 جاري فك تشفير الكود المحقون..."
+          echo "$PAYLOAD" | base64 --decode > main.m
+          
           SDK_PATH=$(xcrun --sdk iphoneos --show-sdk-path)
           
-          echo "🔨 التجميع لبنية: arm64 (مع الدمج المباشر لمحرك PTFakeTouch)"
-          
+          echo "🔨 التجميع لبنية: arm64"
           xcrun -sdk iphoneos clang -dynamiclib -arch arm64 \
             -isysroot "$SDK_PATH" \
-            -Wno-deprecated-declarations -fobjc-arc \
-            -undefined dynamic_lookup \
+            -fobjc-arc -undefined dynamic_lookup \
             -I./touch_engine \
-            main.m touch_engine/*.m -o generated_dylibs/OBSIDIAN_latest.dylib \
+            main.m touch_engine/*.m -o "${NAME}.dylib" \
             -framework Foundation -framework UIKit -framework CoreGraphics -framework IOKit
 
-          TIMESTAMP=$(date +%s)
-          cp generated_dylibs/OBSIDIAN_latest.dylib generated_dylibs/OBSIDIAN_$TIMESTAMP.dylib
-
-      - name: Commit and Push All Assets to Repository
+      - name: Create GitHub Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NAME: ${{ github.event.client_payload.dylib_name }}
         run: |
-          git config --global user.name "OBSIDIAN Engine"
-          git config --global user.email "obsidian-bot@users.noreply.github.com"
+          TAG_NAME="release-${NAME}-$(date +%Y%m%d-%H%M%S)"
+          echo "🚀 جاري إنشاء Release جديد بالوسم: $TAG_NAME"
+          gh release create "$TAG_NAME" "${NAME}.dylib" \
+            --title "🔥 OBSIDIAN: ${NAME}.dylib" \
+            --notes "تم التجميع والبناء بنجاح."
 
-          git add generated_dylibs/
-
-          if ! git diff-index --quiet HEAD; then
-            git commit -m "🔥 OBSIDIAN: تم بناء الأداة مدمجة بمحرك اللمس بنجاح"
-            git pull --rebase origin ${{ github.ref }}
-            git push origin HEAD:${{ github.ref }}
-          else
-            echo "✅ كل الملفات مطابقة."
-          fi
+      - name: Send Dylib to Telegram
+        env:
+          TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          CHAT_ID: ${{ github.event.client_payload.chat_id }}
+          MSG_ID: ${{ github.event.client_payload.wait_msg_id }}
+          NAME: ${{ github.event.client_payload.dylib_name }}
+        run: |
+          curl -s -F document=@"${NAME}.dylib" -F chat_id="$CHAT_ID" "https://api.telegram.org/bot$TOKEN/sendDocument"
+          curl -s -X POST "https://api.telegram.org/bot$TOKEN/deleteMessage" -d "chat_id=$CHAT_ID&message_id=$MSG_ID"
